@@ -59,13 +59,22 @@ range_write(ss = gs4_get(gl_url),
 
 # ALGONA PPG --------------------------------------------------------------
 
-algona_all <- list.files(here("data/algona-ppg/"),
+algona_ppg_all <- list.files(here("data/algona-ppg/"),
                  full.names = TRUE) %>% 
   map_dfr(read_xlsx) %>% 
   clean_names("screaming_snake") %>% 
   select_if(not_all_na)
 
-algona_ready <- algona_all %>% 
+algona_ppg_contract_id <- "AE9124CB"
+
+algona_ppg_budget_url <- "https://docs.google.com/spreadsheets/d/17e_LVVwEv7De9UMwWV6IwB7crH4I76D4Mg6iu4MNdgw/"
+
+algona_ppg_tasks <- googlesheets4::read_sheet(ss = gs4_get(algona_ppg_budget_url),
+                                      sheet = "BUDGET BY TASK") %>%  
+  mutate(TASK_TITLE = str_remove(TASK,"^.{5}")) %>% 
+  select(TASK, TASK_TITLE)
+
+algona_ppg_ready <- algona_ppg_all %>% 
   filter(APPROVED_DENIED_MODIFIED %in% c("Approved", "Modified")) %>%  
   mutate(DATE_INCURRED_START = as.Date(word(DATE_INCURRED_START),"%m/%d/%Y"),
          DATE_INCURRED_END = as.Date(word(DATE_INCURRED_END),"%m/%d/%Y"),
@@ -74,21 +83,25 @@ algona_ready <- algona_all %>%
     ITEM_CATEGORY %in% "Contracts" ~ "02 - pass-through revenue",
     TRUE ~ "01 - retained revenue"
   )) %>% 
+  mutate(TASK_TITLE = toupper(str_trim(str_remove(TASK_TITLE, "Task 2")))) %>% 
+  mutate(CONTRACT_ID = algona_ppg_contract_id) %>% 
+  left_join(algona_ppg_tasks, by = "TASK_TITLE") %>% 
   relocate(YEAR_QUARTER, .before = DATE_INCURRED_START) %>% 
-  relocate(REVENUE_TYPE, .after = ITEM_CATEGORY)
+  relocate(REVENUE_TYPE, .after = ITEM_CATEGORY) %>% 
+  relocate(TASK, .after = TASK_TITLE)
 
 
 
-algona_url <- "https://docs.google.com/spreadsheets/d/1kjZQZBLGANNzt9l4akPUZBDA98YuzdrwGzcxKZ-_bkE/edit?usp=sharing" 
+algona_ppg_url <- "https://docs.google.com/spreadsheets/d/1kjZQZBLGANNzt9l4akPUZBDA98YuzdrwGzcxKZ-_bkE/edit?usp=sharing" 
 
 
 # run this this first time *only*
-# sheet_write(algona_ready,
-#             ss = gs4_get(algona_url),
-#             sheet = "[REF]  PAYMENTS")
+# sheet_write(algona_ppg_ready,
+#             ss = gs4_get(algona_ppg_url),
+#             sheet = "PAYMENTS")
 
-range_write(ss = gs4_get(algona_url),
-            data = algona_ready,
-            sheet = "[REF]  PAYMENTS",
+range_write(ss = gs4_get(algona_ppg_url),
+            data = algona_ppg_ready,
+            sheet = "PAYMENTS",
             range = "A1")  # this means the overwrite will start at the top-left corner
 
